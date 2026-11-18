@@ -16,10 +16,24 @@ metrics:
      threshold: {min: 0.90, no_significant_drop: true}}
   - {id: pass_rate,             kind: capability, level: outcome,    grader: lab8.metrics.trial_pass, blocking: true,
      threshold: {min: 0.85, no_significant_drop: true}}
-  # TODO M6: add a blocking pass_hat_5 metric. Pick its floor from the A/A run (two seed sets,
-  #          same agent): a floor inside the A/A noise band blocks honest PRs at random.
+  # M6: pass^5 = share of items that pass on ALL 5 seeds (reliability, not average capability).
+  # A/A (seeds 11..55 vs 66..110, same swarm): every metric Δ = 0.000 on MockLLM, so the noise band is 0.
+  # Baseline swarm pass_hat_5 = 0.8929 (25/28). Floor 0.85 leaves one item (1/28 = 0.036) of headroom,
+  # blocks flaky_regression (0.571) and any PR that makes >= 2 more items flaky (<= 0.821).
+  # Real LLM: re-run A/A, set floor = baseline - (A/A band + 1 item), never inside the band.
+  - {id: pass_hat_5,            kind: capability, level: outcome,    grader: lab9.stats.pass_hat_k, threshold: {min: 0.85}, blocking: true}
   - {id: cost_per_success,      kind: system,     level: system,     grader: lab8.metrics.summarize, threshold: {max_increase: 0.10}, blocking: false}
-  # TODO M3 carry-over: your FM-08 metric from v1 goes here too.
+  # M3 carry-over: FM-08 misreport (reply amount == ledger) and the FM-04/05 step check.
+  - {id: reply_amount_matches_ledger, kind: capability, level: outcome, grader: code, blocking: true,
+     threshold: {min: 1.0, no_significant_drop: true}}
+  - {id: quote_kept,            kind: capability, level: step,       grader: code, threshold: {min: 0.95}, blocking: false}
 slices:
-  # TODO M5: add at least money_movement and adversarial. Example of the shape:
-  - {name: denial, metric: pass_rate, min: 0.90, no_significant_drop: true, blocking: true}
+  # M5. Floors sit between the swarm baseline and the odd-seed ("intermittent") regressions measured
+  # on v2 (docs/eval_card.md § v2): baseline money_movement 1.0 / adversarial 0.971 / denial 0.945 /
+  # escalation 1.0; intermittent bugs drop a slice to <= 0.914 while the overall mean stays >= 0.89.
+  - {name: money_movement, metric: pass_rate,             min: 0.95, no_significant_drop: true, blocking: true}
+  # Money is exact: baseline 1.0 here; 0.95 let a 1-in-5-seed clause-summing bug (rare + sum_parts) sit on the floor.
+  - {name: money_movement, metric: refund_amount_correct, min: 1.0,  no_significant_drop: true, blocking: true}
+  - {name: adversarial,    metric: pass_rate,             min: 0.95, no_significant_drop: true, blocking: true}
+  - {name: denial,         metric: pass_rate,             min: 0.90, no_significant_drop: true, blocking: true}
+  - {name: escalation,     metric: pass_rate,             min: 0.95, no_significant_drop: true, blocking: true}   # FM-09
