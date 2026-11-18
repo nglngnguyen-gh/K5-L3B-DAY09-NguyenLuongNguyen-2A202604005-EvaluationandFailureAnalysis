@@ -2,10 +2,10 @@
 
 Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi số liệu dưới đây lấy từ `src/reports/*.json`. Các report này do `python -m lab9.eval` sinh ra, không sửa tay.
 
-- **Run ID / eval set SHA:** baseline `E-swarm-20261118-ed85` · PR `E-fixed-20261118-ed85`, `E-seeded_regression-20261118-ed85` · eval set `ed85465f2cf6`
+- **Run ID / eval set SHA:** baseline `E-swarm-20261118-87fc` · PR `E-fixed-20261118-87fc`, `E-seeded_regression-20261118-87fc` · eval set `87fc37ca9d09`
 - **Phiên bản:**
   - Code: commit `25406ff` (nhánh `starter/d09`), Lab 8 giữ nguyên.
-  - Eval set: v1 (sha `ed85465f2cf6`).
+  - Eval set: v1 (sha `87fc37ca9d09`).
   - metric_spec: `1.0` ([src/config/metric_spec.yaml](../src/config/metric_spec.yaml)).
   - Grader: commit `97cea9d` ([src/lab9/graders.py](../src/lab9/graders.py)).
   - Seeds: 11/22/33/44/55. LLM: MockLLM. Python 3.15 trên máy, 3.13 trên CI.

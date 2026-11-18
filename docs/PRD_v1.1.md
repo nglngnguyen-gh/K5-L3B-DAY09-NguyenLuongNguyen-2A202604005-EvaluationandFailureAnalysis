@@ -21,10 +21,10 @@
   - Claim liên quan nhiều đơn, hoặc gom đơn.
   - Tranh chấp pháp lý.
   - Yêu cầu viện dẫn điều khoản cũ, hoặc chứa chỉ thị "ignore policy".
-- **Môi trường đo:** MockLLM, eval set v1 (14 item × 5 seed, sha `ed85465f2cf6`). **Chưa** đo trên người dùng thật.
+- **Môi trường đo:** MockLLM, eval set v1 (14 item × 5 seed, sha `87fc37ca9d09`). **Chưa** đo trên người dùng thật.
 
 ## 3. Định nghĩa "chạy đúng" (trích metric_spec 1.0)
-Baseline: `E-swarm-20261118-ed85`.
+Baseline: `E-swarm-20261118-87fc`.
 
 | Metric | Loại | Ngưỡng | Chặn release? | Baseline |
 |---|---|---|---|---|
