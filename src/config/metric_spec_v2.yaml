@@ -19,7 +19,16 @@ metrics:
   # TODO M6: add a blocking pass_hat_5 metric. Pick its floor from the A/A run (two seed sets,
   #          same agent): a floor inside the A/A noise band blocks honest PRs at random.
   - {id: cost_per_success,      kind: system,     level: system,     grader: lab8.metrics.summarize, threshold: {max_increase: 0.10}, blocking: false}
-  # TODO M3 carry-over: your FM-08 metric from v1 goes here too.
+  # M3 carry-over: FM-08 misreport (reply amount == ledger) and the FM-04/05 step check.
+  - {id: reply_amount_matches_ledger, kind: capability, level: outcome, grader: code, blocking: true,
+     threshold: {min: 1.0, no_significant_drop: true}}
+  - {id: quote_kept,            kind: capability, level: step,       grader: code, threshold: {min: 0.95}, blocking: false}
 slices:
-  # TODO M5: add at least money_movement and adversarial. Example of the shape:
-  - {name: denial, metric: pass_rate, min: 0.90, no_significant_drop: true, blocking: true}
+  # M5. Floors sit between the swarm baseline and the odd-seed ("intermittent") regressions measured
+  # on v2 (docs/eval_card.md § v2): baseline money_movement 1.0 / adversarial 0.971 / denial 0.945 /
+  # escalation 1.0; intermittent bugs drop a slice to <= 0.914 while the overall mean stays >= 0.89.
+  - {name: money_movement, metric: pass_rate,             min: 0.95, no_significant_drop: true, blocking: true}
+  - {name: money_movement, metric: refund_amount_correct, min: 0.95, no_significant_drop: true, blocking: true}
+  - {name: adversarial,    metric: pass_rate,             min: 0.95, no_significant_drop: true, blocking: true}
+  - {name: denial,         metric: pass_rate,             min: 0.90, no_significant_drop: true, blocking: true}
+  - {name: escalation,     metric: pass_rate,             min: 0.95, no_significant_drop: true, blocking: true}   # FM-09
