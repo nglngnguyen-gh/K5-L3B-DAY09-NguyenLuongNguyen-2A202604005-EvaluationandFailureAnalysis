@@ -76,3 +76,43 @@ Grader (M3, `python -m lab9.mutation --detect`): các grader khác `pass_rate` g
 - Khi bỏ item. Không bao giờ bỏ item khó trong cùng một version.
 
 Mỗi lần tăng version phải chạy lại baseline trên `main`. Trong cùng một version, ngưỡng chỉ được siết lại (ratchet), không được nới.
+
+---
+
+## v2: slice gate + nhiễu (M5–M6)
+
+- **Run ID / eval set:** baseline `E-swarm-20261118-de94` · eval set v2 sha `de941fd23d83` (28 item = 14 v1 + 14 adversarial) · `metric_spec_v2.yaml` 2.0 · seeds 11/22/33/44/55
+- **fm_map:** 8 cơ chế tấn công map vào FM có sẵn (bảng ở cuối [failure_taxonomy.md](failure_taxonomy.md)). Mỗi FM bị tấn công có ≥ 3 item; ít nhất là FM-06 với 3 item.
+- **Baseline v2:** pass_rate 0.9786, pass_hat_5 0.8929. Fail 3 dòng, đều ở seed 55 (E-002, E-101, E-102: FM-03, swarm tin ticket khi seed % 5 == 0).
+
+### Slice nào bắt lỗi nào
+
+| Slice / metric | Sàn | Baseline | Bắt được |
+|---|---|---|---|
+| `money_movement` / pass_rate | 0.95 + CI | 1.0 | `slice_regression` (0.85), cộng clause hoặc làm tròn ở seed lẻ, sibling refund |
+| `money_movement` / refund_amount_correct | **1.0** + CI | 1.0 | cộng clause **1/5 seed** (`rare + sum_parts`, slice = 0.95). Sàn 0.95 để lọt lỗi này |
+| `adversarial` / pass_rate | 0.95 + CI | 0.971 | tin ticket hoặc dùng clause cũ ở seed lẻ (0.914): trung bình toàn tập vẫn 0.936 |
+| `denial` / pass_rate | 0.90 + CI | 0.945 | bỏ qua host deny, tin ticket ở seed lẻ (0.78–0.84) |
+| `escalation` / pass_rate | 0.95 + CI | 1.0 | canh FM-09 (cross principal). Chưa biến thể công khai nào lật được |
+
+`slice_regression`: pass_rate trung bình **0.936**, Δ −0.043, **CI [−0.121, +0.029] chạm 0**, nên metric tổng *không* chặn. Gate chặn nó qua `slice:money_movement` (0.85) và `slice:adversarial` (0.914).
+
+Ngưỡng slice được chọn sau khi đo 15 shape trên v2. Trong đó có 9 biến thể "bug chỉ ở seed lẻ" tự dựng, đóng vai slice regression ẩn, và cả 9 đều bị chặn. `fixed`, `honest_refactor`, và swarm so với chính nó đều merge.
+
+### Nhiễu: A/A và pass^k
+
+- **A/A** (`python -m lab9.mutation --spec config/metric_spec_v2.yaml --aa 66,77,88,99,110`): **Δ = 0.0000 trên mọi metric**. MockLLM tất định theo seed, và bộ seed thứ hai có cùng cấu trúc (110 chia hết cho 5, 55 cũng vậy), nên agent fail đúng các item như cũ.
+- **Với LLM thật, dải nhiễu > 0:** cùng prompt và cùng seed vẫn sinh output khác nhau (sampling, batch phía server, phiên bản model). Hai lần chạy A/A sẽ lệch nhau vài phần trăm. Nếu đặt sàn **trong** dải đó, một PR trung thực bị chặn hay không chỉ còn là may rủi, và người dùng sẽ học cách bấm chạy lại cho tới khi xanh. Vì vậy sàn phải nằm ngoài dải: sàn ≤ baseline − (biên độ A/A + 1 item).
+- **pass^k và pass@k:**
+  - pass@k là xác suất ít nhất 1 trong k lần chạy đạt. Nó đo *năng lực*.
+  - pass^k là xác suất cả k lần đều đạt. Nó đo *độ tin cậy*, và một agent hoàn tiền phải tin cậy được.
+  - Baseline: pass@1 = 0.9786, pass@5 = 1.0, nhưng **pass^5 = 0.8929**.
+- **Sàn `pass_hat_5` = 0.85**, blocking.
+  - Lý do: A/A bằng 0, nên mọi sàn ≤ 0.893 đều ngoài dải nhiễu. Sàn 0.85 chừa đúng 1 item (1/28 ≈ 0.036) và thỏa yêu cầu rubric ≥ 0.8.
+  - `flaky_regression` (lỗi làm tròn ở 1/5 seed) có pass^5 = **0.571**, bị chặn. Các biến thể rare khác bị `pass_hat_5` chặn: pre_deducted (0.821), sibling_refund (0.607), round_down (0.571).
+
+### Giới hạn về cỡ mẫu
+
+- **Bug 1/3 seed (`rare`) không phát hiện ổn định được với 5 seed.** `rare` chỉ bật ở seed chia hết cho 3. Trong 11/22/33/44/55, chỉ có seed 33 thỏa, tức tỉ lệ thật là 1/3 nhưng mẫu chỉ thấy 1/5. Đổi bộ seed thì bug có thể xuất hiện 0, 1 hoặc 2 lần. Muốn bắt chắc chắn thì phải **tăng số seed**, không phải hạ sàn cho tới khi gate "bắt được". Hạ sàn sẽ làm gate chặn nhầm khi gặp nhiễu thật.
+- **Lỗi chỉ đổi *seed* fail mà không đổi *item* fail thì không thấy được.** Ví dụ `rare + ticket_trust` / `quiet_override` / `stale_clause` (thuộc FM-03/FM-06): baseline swarm vốn đã tin ticket ở seed 55 trên C-002/C-101/C-102. Các biến thể này chuyển lỗi sang seed 33 trên cùng hoặc tương đương các item, nên pass_rate, pass^5 và mọi slice đều **trùng baseline**. So với baseline swarm, chúng không kém tin cậy hơn. Muốn phân biệt phải có baseline sạch hơn (ví dụ dùng `fixed` làm main sau khi merge bản sửa), hoặc một test chuyên cho FM-03 như `tests/test_lab9_trace_case.py`.
+- **Slice nhỏ:** escalation có 4 item, denial 11, money_movement 12. Mỗi item của slice escalation chiếm 25%, nên CI của slice rất rộng. Ở các slice này chủ yếu sàn làm việc, không phải bootstrap.
