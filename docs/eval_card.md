@@ -116,3 +116,31 @@ Ngưỡng slice được chọn sau khi đo 15 shape trên v2. Trong đó có 9 
 - **Bug 1/3 seed (`rare`) không phát hiện ổn định được với 5 seed.** `rare` chỉ bật ở seed chia hết cho 3. Trong 11/22/33/44/55, chỉ có seed 33 thỏa, tức tỉ lệ thật là 1/3 nhưng mẫu chỉ thấy 1/5. Đổi bộ seed thì bug có thể xuất hiện 0, 1 hoặc 2 lần. Muốn bắt chắc chắn thì phải **tăng số seed**, không phải hạ sàn cho tới khi gate "bắt được". Hạ sàn sẽ làm gate chặn nhầm khi gặp nhiễu thật.
 - **Lỗi chỉ đổi *seed* fail mà không đổi *item* fail thì không thấy được.** Ví dụ `rare + ticket_trust` / `quiet_override` / `stale_clause` (thuộc FM-03/FM-06): baseline swarm vốn đã tin ticket ở seed 55 trên C-002/C-101/C-102. Các biến thể này chuyển lỗi sang seed 33 trên cùng hoặc tương đương các item, nên pass_rate, pass^5 và mọi slice đều **trùng baseline**. So với baseline swarm, chúng không kém tin cậy hơn. Muốn phân biệt phải có baseline sạch hơn (ví dụ dùng `fixed` làm main sau khi merge bản sửa), hoặc một test chuyên cho FM-03 như `tests/test_lab9_trace_case.py`.
 - **Slice nhỏ:** escalation có 4 item, denial 11, money_movement 12. Mỗi item của slice escalation chiếm 25%, nên CI của slice rất rộng. Ở các slice này chủ yếu sàn làm việc, không phải bootstrap.
+
+## v2: chống gian lận eval (M7)
+
+`gate.integrity_check` chạy **trước** mọi so sánh ngưỡng. Report không tin được thì gate exit 1 với lý do `INTEGRITY`, kể cả khi mọi metric đều "đẹp".
+
+| Trap | Lý do bị chặn |
+|---|---|
+| `evaluator_errors_as_nan` (grader crash → None/NaN, rơi khỏi trung bình) | metric NaN/inf; dòng có metric chấm điểm là None hoặc không phải bool |
+| `dropped_failing_rows` (bỏ dòng fail) | số dòng ≠ item × seed; tập (item, seed) khác baseline |
+| `cherry_picked_seeds` (chỉ giữ seed đẹp) | `manifest.seeds` khác baseline; tập (item, seed) khác baseline |
+| `loosened_spec` (hạ ngưỡng, bỏ slice trong cùng PR) | ratchet với `--base-spec`: cùng eval-set version thì `min` không được giảm, `max`/`max_increase` không được tăng, không bỏ metric, slice, `blocking` hay `no_significant_drop`, không bớt seed, không đổi eval_set/labels, không hạ confidence |
+| *(tự dựng)* dòng trùng lặp thay cho dòng fail (số dòng vẫn đúng) | `duplicated (item, seed) rows` |
+| *(tự dựng)* `evaluator_failures` trên run xanh | evaluator failure không rỗng |
+| *(tự dựng)* sửa tay phần tóm tắt `metrics` | tính lại `aggregate` từ các dòng, lệch quá 1e-6 thì chặn |
+| *(tự dựng)* gỡ nhãn slice khỏi một item | slice tag khác baseline; slice rỗng thì báo MISSING |
+
+Các kiểm tra cấu trúc áp dụng cho **cả baseline**, vì baseline bị làm giả thì mọi quyết định của gate đều vô nghĩa. Eval-set version mới được phép đặt lại ngưỡng, và ratchet không áp dụng giữa hai version khác nhau.
+
+Kết quả:
+- `python -m lab9.traps --pr reports/eval_slice_regression.json --baseline reports/baseline_v2.json --spec config/metric_spec_v2.yaml`: **4/4 trap bị chặn** (exit 0).
+- `lab9.mutation`: **3/3, 0 báo nhầm**.
+- Baseline v2 so với chính nó vẫn merge (cả khi có `--base-spec`).
+- Test: `tests/test_lab9_advanced_integrity.py`.
+
+**Có thể còn lọt:**
+- Report sinh lại *trung thực* từ một agent khác (ví dụ chạy `fixed` rồi đặt tên là `swarm`). Integrity chỉ kiểm tính nhất quán bên trong report. `shape` và `run_id` không được ký, nên cần CI tự chạy lại eval như job `eval-gate` đang làm, không tin report do PR nộp lên.
+- Sửa đồng thời các dòng **và** phần tóm tắt cho khớp nhau (đổi `False` thành `True`): integrity không phát hiện được. Chỉ chạy lại agent mới bắt được.
+- Sửa `variants.py`, grader hoặc eval set trong cùng PR: eval_set_sha bắt được việc sửa eval set. Sửa grader thì cần review code, hoặc chạy grader của `main` trên trace của PR.
